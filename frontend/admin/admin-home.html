@@ -1,0 +1,284 @@
+<div class="min-h-screen p-6 space-y-6">
+
+  <!-- Dashboard Title -->
+  <h2 class="text-2xl font-bold text-black mb-2">Dashboard</h2>
+  <p class="text-white text-sm">Overview of your handled subjects and classes</p>
+
+  <!-- Dashboard Statistics -->
+  <div id="stats-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+
+  <!-- Subjects Handled -->
+  <div class="bg-white shadow-md rounded-lg p-4">
+    <h3 class="text-lg font-semibold text-black border-b pb-2 mb-3">
+      Subjects You Handle
+    </h3>
+
+    <div id="handled-subjects" class="space-y-3">
+      <p class="text-gray-500 text-center py-4">Loading...</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================================================== -->
+<!-- ========================= MODALS ===================== -->
+<!-- ===================================================== -->
+
+<!-- SECTION SCHEDULES MODAL -->
+<div id="modalSection" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+  <div class="bg-white p-6 rounded-lg w-full max-w-xl relative">
+
+    <button onclick="closeModal('modalSection')" class="absolute top-3 right-3 text-gray-600">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-4">Section Schedules</h3>
+    <div id="section-schedule-list" class="space-y-3 max-h-80 overflow-y-auto"></div>
+
+  </div>
+</div>
+
+<!-- ENROLLED STUDENTS MODAL -->
+<div id="modalEnrolled" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+  <div class="bg-white p-6 rounded-lg w-full max-w-lg relative">
+
+    <button onclick="closeModal('modalEnrolled')" class="absolute top-3 right-3 text-gray-600">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-3">Enrolled Students</h3>
+    <div id="enrolled-list" class="space-y-2 max-h-72 overflow-y-auto"></div>
+
+  </div>
+</div>
+
+<!-- REQUESTS MODAL -->
+<div id="modalRequests" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+  <div class="bg-white p-6 rounded-lg w-full max-w-lg relative">
+
+    <button onclick="closeModal('modalRequests')" class="absolute top-3 right-3 text-gray-600">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-3">Enrollment Requests</h3>
+    <div id="requests-list" class="space-y-2 max-h-72 overflow-y-auto"></div>
+
+  </div>
+</div>
+
+<script>
+feather.replace();
+
+/* ===========================================================
+   INIT
+=========================================================== */
+function init_admin_home() {
+  loadDashboardStats();
+  loadHandledSubjects();
+}
+
+/* ===========================================================
+   DASHBOARD TOTALS (Instructor-specific)
+=========================================================== */
+async function loadDashboardStats() {
+  try {
+    const data = await apiFetch("/admin/dashboard");
+    const totals = data.totals;
+
+    document.getElementById("stats-cards").innerHTML = `
+      <div class="bg-white p-4 shadow rounded-lg">
+        <h4 class="text-lg font-semibold text-gray-700">My Students</h4>
+        <p class="text-2xl font-bold text-blue-600">${totals.total_students}</p>
+      </div>
+
+      <div class="bg-white p-4 shadow rounded-lg">
+        <h4 class="text-lg font-semibold text-gray-700">My Subjects</h4>
+        <p class="text-2xl font-bold text-green-600">${totals.total_subjects}</p>
+      </div>
+
+      <div class="bg-white p-4 shadow rounded-lg">
+        <h4 class="text-lg font-semibold text-gray-700">My Classes</h4>
+        <p class="text-2xl font-bold text-red-600">${totals.total_classes}</p>
+      </div>
+    `;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+/* ===========================================================
+   LOAD SUBJECTS HANDLED
+=========================================================== */
+async function loadHandledSubjects() {
+  const container = document.getElementById("handled-subjects");
+
+  try {
+    const subjects = await apiFetch("/admin/subjects");
+
+    if (!subjects.length) {
+      container.innerHTML = "<p class='text-center text-gray-500'>You are not assigned to any subjects.</p>";
+      return;
+    }
+
+    container.innerHTML = subjects.map(s => `
+      <div class="border p-3 rounded-lg">
+        <h4 class="text-md font-semibold">
+          ${s.subject_code} - ${s.subject_name} (${s.section_name})
+        </h4>
+
+        <button onclick="openSectionModal(${s.section_id})"
+          class="mt-2 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
+          View Schedules
+        </button>
+      </div>
+    `).join("");
+
+  } catch (err) {
+    container.innerHTML = "<p class='text-center text-red-500'>Error loading subjects.</p>";
+  }
+}
+
+/* ===========================================================
+   OPEN SECTION SCHEDULES — GROUPED (ONE BLOCK ONLY)
+=========================================================== */
+async function openSectionModal(sectionId) {
+  const box = document.getElementById("section-schedule-list");
+  box.innerHTML = "<p class='text-gray-500'>Loading...</p>";
+
+  showModal("modalSection");
+
+  try {
+    const schedules = await apiFetch(`/admin/subject/${sectionId}/schedules`);
+
+    if (!schedules.length) {
+      box.innerHTML = "<p class='text-gray-500'>No schedules found.</p>";
+      return;
+    }
+
+    const lines = schedules.map(s => `
+      <div class="text-sm">
+        <strong>${s.day}</strong> — ${s.start_time.substring(0,5)} - ${s.end_time.substring(0,5)}
+      </div>
+    `).join("");
+
+    // USE FIRST SCHEDULE_ID — grouping means all belong to same section
+const scheduleId = schedules[0].schedule_id;
+
+box.innerHTML = `
+  <div class="border p-4 rounded-lg space-y-3">
+    <h4 class="font-semibold mb-2">Schedule</h4>
+
+    ${lines}
+
+    <div class="flex gap-3 mt-4">
+      <button onclick="openEnrolled(${scheduleId})"
+        class="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 rounded">
+        Enrolled Students
+      </button>
+
+      <button onclick="openRequests(${scheduleId})"
+        class="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-2 py-1 rounded">
+        Enrollment Requests
+      </button>
+    </div>
+  </div>
+`;
+
+
+  } catch (err) {
+    box.innerHTML = "<p class='text-red-600'>Error loading schedules.</p>";
+  }
+}
+
+/* ===========================================================
+   ENROLLED STUDENTS (GROUPED BY SECTION)
+=========================================================== */
+async function openEnrolled(sectionId) {
+  const list = document.getElementById("enrolled-list");
+  list.innerHTML = "<p class='text-gray-500'>Loading...</p>";
+
+  showModal("modalEnrolled");
+
+  try {
+    const students = await apiFetch(`/admin/schedule/${sectionId}/enrolled`);
+
+    list.innerHTML = students.length
+      ? students.map(s => `
+        <div class="border p-2 rounded">
+          <p class="font-semibold">${s.student_id} - ${s.name}</p>
+          <p class="text-sm">${s.email}</p>
+        </div>
+      `).join("")
+      : "<p class='text-gray-500'>No enrolled students.</p>";
+
+  } catch (err) {
+    list.innerHTML = "<p class='text-red-500'>Error loading data.</p>";
+  }
+}
+
+/* ===========================================================
+   ENROLLMENT REQUESTS (GROUPED BY SECTION)
+=========================================================== */
+async function openRequests(sectionId) {
+  const list = document.getElementById("requests-list");
+  list.innerHTML = "<p class='text-gray-500'>Loading...</p>";
+
+  showModal("modalRequests");
+
+  try {
+    const requests = await apiFetch(`/admin/schedule/${sectionId}/requests`);
+
+    list.innerHTML = requests.length
+      ? requests.map(r => `
+        <div class="border p-2 rounded flex justify-between">
+          <div>
+            <p class="font-semibold">${r.student_id} - ${r.name}</p>
+            <p class="text-sm">${r.email}</p>
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="approve(${r.enrollment_id})"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm">
+              Approve
+            </button>
+
+            <button onclick="decline(${r.enrollment_id})"
+              class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm">
+              Decline
+            </button>
+          </div>
+        </div>
+      `).join("")
+      : "<p class='text-gray-500'>No pending requests.</p>";
+
+  } catch (err) {
+    list.innerHTML = "<p class='text-red-500'>Error loading requests.</p>";
+  }
+}
+
+/* ===========================================================
+   APPROVE / DECLINE
+=========================================================== */
+async function approve(id) {
+  await apiFetch(`/admin/request/${id}/approve`, { method: "POST" });
+  alert("Approved");
+  closeModal("modalRequests");
+}
+
+async function decline(id) {
+  await apiFetch(`/admin/request/${id}/decline`, { method: "POST" });
+  alert("Declined");
+  closeModal("modalRequests");
+}
+
+/* ===========================================================
+   MODAL HELPERS
+=========================================================== */
+function showModal(id) {
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add("hidden");
+}
+</script>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduSched | Student Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+  <link rel="stylesheet" href="../style.css">
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+  <!-- NAVBAR -->
+  <header class="flex items-center justify-start bg-white shadow-md px-8 py-4 fixed top-0 left-0 right-0 z-50 gap-12">
+    <div class="flex items-center space-x-2">
+      <img src="../assets/edusched-logo.png" class="h-8 w-8" />
+      <h1 class="text-xl font-bold text-gray-800">EduSched</h1>
+    </div>
+
+    <div class="text-lg">
+      <span class="font-bold">WELCOME BACK!</span>
+      <span class="text-gray-700" id="navbarStudentName">Loading...</span>
+    </div>
+
+    <div class="flex items-center space-x-4 ml-auto">
+      <button onclick="loadPage('student-account.html', null)">
+        <i data-feather="user"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex-1 grid grid-cols-[14rem_1fr] min-h-0 overflow-hidden pt-[4rem]">
+
+    <!-- SIDEBAR -->
+    <aside class="w-56 bg-white shadow-md p-4 space-y-2 overflow-y-auto">
+
+      <a href="#"
+         onclick="loadPage('student-home.html', this)"
+         class="sidebar-link block bg-gray-200 text-gray-900 font-medium py-2 px-3 rounded-lg">
+        Home
+      </a>
+
+      <a href="#"
+         onclick="loadPage('student-schedule.html', this)"
+         class="sidebar-link block text-gray-700 hover:bg-gray-100 py-2 px-3 rounded-lg">
+        Schedule
+      </a>
+
+      <a href="#"
+         onclick="loadPage('student-announcements.html', this)"
+         class="sidebar-link block text-gray-700 hover:bg-gray-100 py-2 px-3 rounded-lg">
+        Announcements
+      </a>
+
+      <div class="absolute bottom-6">
+        <a href="#" onclick="logoutAndRedirect()"
+           class="flex items-center space-x-2 text-gray-700 hover:text-red-600">
+          <i data-feather="log-out"></i>
+          <span>Log-out</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content"
+          class="flex-0 p-5 bg-white/110 backdrop-blur-md overflow-y-auto h-[calc(100vh-4rem)] rounded-lg">
+    </main>
+  </div>
+
+  <script src="../script.js"></script>
+
+  <script>
+    feather.replace();
+    protectLayout("student");
+    setNavbarName();
+
+    window.onload = () => {
+      const defaultLink = document.querySelector('.sidebar-link');
+      loadPage('student-home.html', defaultLink);
+    };
+  </script>
+
+</body>
+</html>

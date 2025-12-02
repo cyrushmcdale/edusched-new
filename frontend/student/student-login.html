@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Login | EduSched</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="relative max-w-md w-full">
+        <!-- Logo container with overlapping space -->
+        <div class="absolute -top-16 left-1/2 transform -translate-x-1/2 w-32 h-32 rounded-full bg-white  flex items-center justify-center border-4 border-white">
+            <!-- Placeholder for logo - replace with your image -->
+             
+            <div class="  flex items-center justify-center">
+                <img 
+          src="../assets/unp-logo.png"
+          alt="UNP Logo"
+          class="object-cover w-full h-full p-3"
+        />
+                <i data-feather="user" class="w-12 h-12 text-blue-600"></i>
+            </div>
+        </div>
+
+        <!-- Main card -->
+        <div class="bg-gray-100 rounded-xl shadow-xl overflow-hidden pt-20 pb-8 px-8">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Student Login</h1>
+                <p class="text-gray-600">Log-in to start your session</p>
+            </div>
+
+            <form class="space-y-4" onsubmit="handleLogin(event)">
+    <div>
+        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">User-ID</label>
+        <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i data-feather="user" class="w-5 h-5 text-gray-400"></i>
+            </div>
+            <input type="text" id="username" required
+                class="pl-10 w-full py-2 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your User-ID">
+        </div>
+    </div>
+
+    <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i data-feather="lock" class="w-5 h-5 text-gray-400"></i>
+            </div>
+            <input type="password" id="password" required
+                class="pl-10 w-full py-2 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your password">
+        </div>
+    </div>
+
+    <div class="pt-2">
+        <button type="submit"
+            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition duration-200 flex items-center justify-center text-center">
+            <i data-feather="log-in" class="w-5 h-5"></i>
+            <span>Login</span>
+        </button>
+    </div>
+
+    <div class="text-center pt-2">
+        <a href="../index.html" class="text-sm text-blue-600 hover:text-blue-800 font-medium">Back to selection</a>
+    </div>
+</form>
+
+        </div>
+    </div>
+    <script>
+feather.replace();
+
+async function handleLogin(e) {
+    e.preventDefault(); // Prevent page reload
+
+    const userId = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    if (!userId || !password) {
+        alert("Please enter your User-ID and password.");
+        return;
+    }
+
+    try {
+        const res = await fetch("https://edusched-1e46.onrender.com/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId,
+                password,
+                role: "student"
+            })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || "Login failed.");
+            return;
+        }
+
+        // Save login session
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("role", data.role);
+        localStorage.setItem("user_id", data.id);
+        localStorage.setItem("user_name", data.name);
+
+        // Redirect to student panel
+        window.location.href = "student-layout.html";
+
+    } catch (err) {
+        alert("Server error. Make sure backend is running.");
+        console.error(err);
+    }
+}
+</script>
+
+</body>
+</html>

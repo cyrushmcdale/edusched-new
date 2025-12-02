@@ -1,0 +1,187 @@
+<!-- student-home.html (FINAL PATCHED FOR 1ST SEMESTER) -->
+<div class="min-h-screen flex flex-col p-6">
+  <h2 class="text-2xl font-bold text-black mb-2">Timetable</h2>
+  <p class="text-white mb-4">Your enrolled class schedules</p>
+
+  <div class="bg-white shadow-md rounded-lg overflow-hidden">
+    <table class="min-w-full text-sm text-center border border-gray-200">
+      <thead class="bg-gray-100 text-gray-700 uppercase text-xs">
+        <tr>
+          <th class="py-3 px-4 border">Time</th>
+          <th class="py-3 px-4 border">Monday</th>
+          <th class="py-3 px-4 border">Tuesday</th>
+          <th class="py-3 px-4 border">Wednesday</th>
+          <th class="py-3 px-4 border">Thursday</th>
+          <th class="py-3 px-4 border">Friday</th>
+        </tr>
+      </thead>
+      <tbody id="timetable-body" class="text-gray-700"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL (unchanged layout) -->
+<div id="scheduleModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+  <div class="bg-white w-full max-w-lg rounded-lg shadow-lg p-6 relative">
+    <button onclick="closeScheduleModal()" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-2" id="modal-subject-name">Subject</h3>
+    <p id="modal-day-time" class="text-sm text-gray-600 mb-1"></p>
+    <p id="modal-room" class="text-sm text-gray-600 mb-3"></p>
+
+    <hr class="my-3">
+
+    <h4 class="text-md font-semibold mb-2">Announcements</h4>
+    <div id="announcement-container" class="max-h-32 overflow-y-auto p-2 bg-gray-50 border rounded text-sm text-gray-700">
+      <p>Loading…</p>
+    </div>
+
+    <div class="flex justify-end mt-3">
+      <button onclick="closeScheduleModal()" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 text-sm">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window["init_student-home"] = async function () {
+  console.log("student-home initialized");
+
+  const token = localStorage.getItem("token");
+  if (!token) {
+    document.getElementById("timetable-body").innerHTML =
+      `<tr><td colspan="6" class="py-6 text-red-600">Login required.</td></tr>`;
+    return;
+  }
+
+  await renderTimetable();
+  feather.replace();
+};
+
+async function renderTimetable() {
+  const table = document.getElementById("timetable-body");
+  table.innerHTML = "";
+
+  const timeSlots = [
+    "7:30 AM","8:00 AM","8:30 AM","9:00 AM","9:30 AM",
+    "10:00 AM","10:30 AM","11:00 AM","11:30 AM",
+    "12:00 PM","12:30 PM","1:00 PM","1:30 PM",
+    "2:00 PM","2:30 PM","3:00 PM","3:30 PM",
+    "4:00 PM","4:30 PM","5:00 PM"
+  ];
+
+  let schedules = [];
+  try {
+    schedules = await apiFetch("/student/my-schedules");
+  } catch (err) {
+    console.error(err);
+    table.innerHTML =
+      `<tr><td colspan="6" class="py-6 text-red-600">Failed to load schedules.</td></tr>`;
+    return;
+  }
+
+  function formatAMPM(timeStr) {
+    if (!timeStr) return "";
+    let [h, m] = timeStr.split(":");
+    h = parseInt(h);
+    const suf = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${m} ${suf}`;
+  }
+
+  function slotIndex(t) {
+    return timeSlots.indexOf(formatAMPM(t));
+  }
+
+  timeSlots.forEach((slot, idx) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td class="py-2 px-4 font-semibold border">${slot}</td>`;
+
+    ["Monday","Tuesday","Wednesday","Thursday","Friday"].forEach(day => {
+      const sched = schedules.find(s =>
+        s.day === day && slotIndex(s.start_time) === idx
+      );
+
+      if (sched) {
+        const rowspan =
+          slotIndex(sched.end_time) - slotIndex(sched.start_time) + 1;
+
+        row.innerHTML += `
+          <td rowspan="${rowspan}"
+              class="border bg-blue-100 cursor-pointer hover:bg-blue-200 align-middle"
+              onclick="openScheduleModal(
+                \`${sched.subject_name}\`,
+                \`${sched.day}\`,
+                \`${formatAMPM(sched.start_time)} - ${formatAMPM(sched.end_time)}\`,
+                \`${sched.section_name}\`,
+                \`${sched.instructor}\`,
+                ${sched.schedule_id}
+              )">
+            <div class="font-bold">${sched.subject_code}</div>
+            <div class="text-xs">${formatAMPM(sched.start_time)} - ${formatAMPM(sched.end_time)}</div>
+          </td>
+        `;
+      } else {
+        // avoid double-filling merged rows
+        const inSpan = schedules.some(s =>
+          s.day === day &&
+          slotIndex(s.start_time) < idx &&
+          slotIndex(s.end_time) >= idx
+        );
+        if (!inSpan) row.innerHTML += `<td class="border"></td>`;
+      }
+    });
+
+    table.appendChild(row);
+  });
+}
+
+async function openScheduleModal(subj, day, time, room, instructor, scheduleId) {
+  document.getElementById("modal-subject-name").textContent = subj;
+  document.getElementById("modal-day-time").textContent = `Schedule: ${day} | ${time}`;
+  document.getElementById("modal-room").textContent = `Section: ${room} | Instructor: ${instructor}`;
+
+  const box = document.getElementById("announcement-container");
+  box.innerHTML = "<p>Loading…</p>";
+
+  try {
+    const announcements = await apiFetch("/announcement/for-student");
+    const filtered = announcements.filter(a => a.schedule_id == scheduleId);
+
+    if (!filtered.length) {
+      box.innerHTML = "<p>No announcements.</p>";
+    } else {
+      box.innerHTML = filtered.map(a => `
+        <div class="border-b pb-2 mb-2">
+          <p class="text-sm text-gray-500">${a.posted_by || ""}</p>
+          <p class="text-gray-700">${a.message}</p>
+          <p class="text-xs text-gray-400">${formatDateTime(a.date_posted)}</p>
+        </div>
+      `).join("");
+    }
+  } catch (err) {
+    box.innerHTML = "<p class='text-red-600'>Error loading announcements.</p>";
+  }
+
+  document.getElementById("scheduleModal").classList.remove("hidden");
+  feather.replace();
+}
+
+function closeScheduleModal() {
+  document.getElementById("scheduleModal").classList.add("hidden");
+}
+
+function formatDateTime(d) {
+  return new Date(d).toLocaleString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: true
+  });
+}
+
+</script>

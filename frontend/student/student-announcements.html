@@ -1,0 +1,80 @@
+<!-- student-announcement.html (DYNAMIC) -->
+<div class="min-h-screen p-6">
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold text-black">Announcements</h2>
+    <p class="text-white text-sm">
+      Showing announcements from your enrolled subjects
+    </p>
+  </div>
+
+  <!-- Announcements Container -->
+  <div id="announcements-container" class="space-y-4">
+    <p class="text-gray-500 text-sm">Loading announcements...</p>
+  </div>
+</div>
+
+<script>
+/* ================================================
+   INITIALIZER FOR THIS PAGE
+================================================ */
+window["init_student-announcement"] = function () {
+  loadAnnouncements();
+  feather.replace();
+};
+
+/* ================================================
+   1 — LOAD ANNOUNCEMENTS (REAL BACKEND DATA)
+================================================ */
+async function loadAnnouncements() {
+  const container = document.getElementById("announcements-container");
+  container.innerHTML = "<p class='text-gray-500 text-sm'>Loading...</p>";
+
+  let announcements = [];
+  try {
+    announcements = await apiFetch("/api/announcement/for-student");
+  } catch (err) {
+    container.innerHTML = `<p class="text-red-600">Unable to load announcements.</p>`;
+    return;
+  }
+
+  if (!announcements.length) {
+    container.innerHTML = `<p class="text-gray-500 text-sm">No announcements available.</p>`;
+    return;
+  }
+
+  container.innerHTML = announcements.map(a => `
+    <div class="bg-white shadow-md rounded-lg p-4">
+      <div class="flex justify-between">
+        <div>
+          <h3 class="text-lg font-semibold">
+            ${a.subject_code || "General Announcement"}
+            ${a.subject_name ? " - " + a.subject_name : ""}
+          </h3>
+          <p class="text-sm text-gray-500">Posted by: ${a.posted_by || "Instructor"}</p>
+        </div>
+        <p class="text-sm text-gray-400">${formatDate(a.date_posted)}</p>
+      </div>
+
+      <p class="mt-2 text-gray-600">${a.message}</p>
+
+      ${a.expiry_date ? `
+        <p class="text-xs text-red-600 mt-2">
+          Expires on: ${formatDate(a.expiry_date)}
+        </p>
+      ` : ""}
+    </div>
+  `).join("");
+}
+
+/* ================================================
+   2 — DATE FORMATTER
+================================================ */
+function formatDate(d) {
+  const date = new Date(d);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+}
+</script>

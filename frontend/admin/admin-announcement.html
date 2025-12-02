@@ -1,0 +1,193 @@
+<div class="min-h-screen p-6">
+  <h2 class="text-2xl font-bold text-black mb-2">Announcements</h2>
+  <p class="text-white text-sm mb-4">Post announcements for your subjects and sections</p>
+
+  <!-- Add Button -->
+  <button 
+    onclick="openModalAnnouncement()"
+    class="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow">
+    <i data-feather="plus"></i> Post Announcement
+  </button>
+
+  <!-- Announcements List -->
+  <div id="announcements-container" class="space-y-4">
+    <p class="text-center text-gray-500 py-4">Loading announcements...</p>
+  </div>
+</div>
+
+<!-- =============================================================== -->
+<!-- MODAL: Create Announcement -->
+<!-- =============================================================== -->
+<div id="announcementModal" 
+     class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+  
+  <div class="bg-white w-full max-w-lg p-6 rounded-lg relative">
+    <button onclick="closeModalAnnouncement()" class="absolute top-3 right-3 text-gray-600">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-4">Create Announcement</h3>
+
+    <!-- SUBJECT -->
+    <label class="text-sm font-medium">Select Subject</label>
+    <select id="announcement-subject" class="w-full border p-2 rounded-md mb-4">
+      <option value="">General Announcement</option>
+    </select>
+
+    <!-- SCHEDULE -->
+    <label class="text-sm font-medium">Select Schedule</label>
+    <select id="announcement-schedule" class="w-full border p-2 rounded-md mb-4">
+      <option value="">Select schedule (optional)</option>
+    </select>
+
+    <!-- MESSAGE -->
+    <label class="text-sm font-medium">Message</label>
+    <textarea id="announcement-message"
+              class="w-full border p-2 rounded-md h-28 mb-4"
+              placeholder="Type your announcement here..."></textarea>
+
+    <!-- EXPIRY -->
+    <label class="text-sm font-medium">Expiry Date (optional)</label>
+    <input type="date" id="announcement-expiry"
+           class="w-full border p-2 rounded-md mb-4">
+
+    <button onclick="submitAnnouncement()"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md">
+      Post Announcement
+    </button>
+  </div>
+</div>
+
+<script>
+feather.replace();
+
+/* ================================================================
+   INIT
+================================================================ */
+function init_admin_announcement() {
+  loadAnnouncements();
+  loadSubjectsForAnnouncement();
+}
+
+/* ================================================================
+   LOAD ANNOUNCEMENTS (ADMIN)
+================================================================ */
+async function loadAnnouncements() {
+  const container = document.getElementById("announcements-container");
+  container.innerHTML = "<p class='text-gray-500 text-center'>Loading...</p>";
+
+  try {
+    const list = await apiFetch("/admin/announcements");
+
+    if (!list.length) {
+      container.innerHTML = "<p class='text-gray-500 text-center'>No announcements yet.</p>";
+      return;
+    }
+
+    container.innerHTML = list.map(a => `
+      <div class="bg-white shadow rounded-lg p-4 border">
+        <div class="flex justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">
+              ${a.subject_code ? `${a.subject_code} - ${a.section_name}` : "General"}
+            </h3>
+            <p class="text-xs text-gray-500">
+              ${a.schedule_id ? `${a.day} ${a.start_time.substring(0,5)} - ${a.end_time.substring(0,5)}` : "General announcement"}
+            </p>
+          </div>
+          <p class="text-sm text-gray-400">${new Date(a.date_posted).toLocaleString()}</p>
+        </div>
+        <p class="mt-2 text-gray-700">${a.message}</p>
+        ${a.expiry_date ? `<p class="text-xs text-red-500 mt-2">Expires on: ${new Date(a.expiry_date).toLocaleDateString()}</p>` : ""}
+      </div>
+    `).join("");
+
+  } catch (err) {
+    container.innerHTML = "<p class='text-red-500 text-center'>Error loading announcements.</p>";
+  }
+}
+
+/* ================================================================
+   LOAD SUBJECTS THEN SCHEDULES
+================================================================ */
+async function loadSubjectsForAnnouncement() {
+  const subjectSelect = document.getElementById("announcement-subject");
+  const scheduleSelect = document.getElementById("announcement-schedule");
+
+  try {
+    const subjects = await apiFetch("/admin/subjects");
+
+    subjectSelect.innerHTML = `
+      <option value="">General Announcement</option>
+      ${subjects.map(s => `
+        <option value="${s.section_id}">
+          ${s.subject_code} - ${s.subject_name} (${s.section_name})
+        </option>
+      `).join("")}
+    `;
+
+    // Load schedules when subject changes
+    subjectSelect.onchange = async function () {
+      const sectionId = this.value;
+      scheduleSelect.innerHTML = `<option value="">Select schedule (optional)</option>`;
+
+      if (!sectionId) return;
+
+      const schedules = await apiFetch(`/admin/subject/${sectionId}/schedules`);
+
+      scheduleSelect.innerHTML += schedules.map(s => `
+        <option value="${s.schedule_id}">
+          ${s.day} ${s.start_time.substring(0,5)} - ${s.end_time.substring(0,5)}
+        </option>
+      `).join("");
+    };
+
+  } catch (err) {
+    console.error("loadSubjectsForAnnouncement failed:", err);
+  }
+}
+
+/* ================================================================
+   OPEN / CLOSE MODAL
+================================================================ */
+function openModalAnnouncement() {
+  document.getElementById("announcement-message").value = "";
+  document.getElementById("announcement-expiry").value = "";
+  document.getElementById("announcement-schedule").innerHTML =
+    `<option value="">Select schedule (optional)</option>`;
+  document.getElementById("announcement-subject").value = "";
+  document.getElementById("announcementModal").classList.remove("hidden");
+}
+
+function closeModalAnnouncement() {
+  document.getElementById("announcementModal").classList.add("hidden");
+}
+
+/* ================================================================
+   SUBMIT ANNOUNCEMENT
+================================================================ */
+async function submitAnnouncement() {
+  const schedule_id = document.getElementById("announcement-schedule").value || null;
+  const message = document.getElementById("announcement-message").value.trim();
+  const expiry_date = document.getElementById("announcement-expiry").value || null;
+
+  if (!message) {
+    alert("Message cannot be empty.");
+    return;
+  }
+
+  try {
+    await apiFetch("/announcement", {
+      method: "POST",
+      body: JSON.stringify({ schedule_id, message, expiry_date })
+    });
+
+    alert("Announcement posted!");
+    closeModalAnnouncement();
+    loadAnnouncements();
+
+  } catch (err) {
+    alert(err.message || "Failed to post announcement.");
+  }
+}
+</script>

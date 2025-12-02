@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | EduSched</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="relative max-w-md w-full">
+        <!-- Logo -->
+        <div class="absolute -top-16 left-1/2 transform -translate-x-1/2 w-32 h-32 rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
+            <img src="../assets/unp-logo.png" alt="UNP Logo" class="object-cover w-full h-full p-3"/>
+        </div>
+
+        <!-- Login card -->
+        <div class="bg-white rounded-xl shadow-xl overflow-hidden pt-20 pb-8 px-8">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Administrator Login</h1>
+                <p class="text-gray-600">Log-in to start your session</p>
+            </div>
+
+            <form class="space-y-4" onsubmit="handleLogin(event)">
+                <div>
+                    <label for="admin-username" class="block text-sm font-medium text-gray-700 mb-1">User-ID</label>
+                    <input type="text" id="admin-username" required class="w-full py-2 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500" placeholder="Enter User-ID">
+                </div>
+
+                <div>
+                    <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="admin-password" required class="w-full py-2 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500" placeholder="Enter your password">
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 px-4 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg transition duration-200 flex items-center justify-center space-x-2">
+                        <i data-feather="log-in" class="w-5 h-5"></i>
+                        <span>Login</span>
+                    </button>
+                </div>
+
+                <div class="text-center pt-2">
+                    <a href="../index.html" class="text-sm text-gray-600 hover:text-gray-800 font-medium">Back to selection</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+feather.replace();
+
+async function handleLogin(e) {
+  e.preventDefault();
+
+  const userId = document.getElementById("admin-username").value;
+  const password = document.getElementById("admin-password").value;
+
+  const res = await fetch("https://edusched-1e46.onrender.com/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      password,
+      role: "admin"
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.message);
+    return;
+  }
+
+  // SAVE TOKEN AND USER INFO
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("role", data.role);
+  localStorage.setItem("user_id", data.id);
+  localStorage.setItem("user_name", data.name);
+
+  // REDIRECT
+  window.location.href = "admin-layout.html";
+}
+</script>
+<script>
+// ---------------------------
+// PROTECT PAGE
+// ---------------------------
+
+// ---------------------------
+// UPDATE NAVBAR NAME
+// ---------------------------
+window.onload = () => {
+  const name = localStorage.getItem("user_name");
+  if (name) {
+    const display = document.querySelector("header span.text-gray-700");
+    if (display) display.textContent = name;
+  }
+
+  // Load default page
+  const defaultLink = document.querySelector('.sidebar-link');
+  loadPage(defaultLink.getAttribute("onclick").match(/'(.*?)'/)[1], defaultLink);
+};
+</script>
+
+</body>
+</html>

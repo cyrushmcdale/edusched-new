@@ -1,0 +1,327 @@
+<!-- student-schedule.html (PATCHED: robust modal listeners + delegation) -->
+<div class="min-h-screen p-6">
+  <!-- Page Title -->
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-black">My Schedule</h2>
+      <p class="text-white text-sm">View and manage your enrolled class schedules</p>
+    </div>
+    <button 
+      onclick="openModal()" 
+      class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-md transition">
+      <i data-feather="plus"></i>
+      <span>Add Schedule</span>
+    </button>
+  </div>
+
+  <!-- My Schedule Table -->
+  <div class="bg-white shadow-md rounded-lg overflow-hidden mb-4">
+    <table class="min-w-full text-sm text-center border border-gray-300">
+      <thead class="bg-gray-100 text-gray-700 uppercase text-xs">
+        <tr>
+          <th class="py-3 px-4 border">Subject Code</th>
+          <th class="py-3 px-4 border">Subject Name</th>
+          <th class="py-3 px-4 border">Day</th>
+          <th class="py-3 px-4 border">Time</th>
+          <th class="py-3 px-4 border">Section</th>
+          <th class="py-3 px-4 border">Instructor</th>
+        </tr>
+      </thead>
+      <tbody id="schedule-table-body">
+        <tr class="border-t">
+          <td colspan="6" class="py-6 text-gray-500">No schedules yet. Click “Add Schedule” to begin.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Available Subjects -->
+  <div class="bg-white shadow-md rounded-lg overflow-hidden">
+    <h3 class="text-lg font-semibold text-black px-4 py-3 border-b">
+      Available Subjects to Enroll
+    </h3>
+    <table class="min-w-full text-sm text-center border border-gray-300">
+      <thead class="bg-gray-100 text-gray-700 uppercase text-xs">
+        <tr>
+          <th class="py-3 px-4 border">Subject Code</th>
+          <th class="py-3 px-4 border">Subject Name</th>
+          <th class="py-3 px-4 border">Units</th>
+        </tr>
+      </thead>
+      <tbody id="available-subjects-body">
+        <tr class="border-t">
+          <td colspan="3" class="py-6 text-gray-500">No available subjects found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="addScheduleModal" class="hidden fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm items-center justify-center">
+  <div class="bg-white w-full max-w-2xl rounded-lg shadow-xl p-6 relative">
+    <button id="modalCloseBtn" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700">
+      <i data-feather="x"></i>
+    </button>
+
+    <h3 class="text-xl font-bold mb-4">Add Schedule</h3>
+
+    <!-- Select Subject -->
+    <label class="text-sm font-medium">Select Subject</label>
+    <select id="modalSubject" class="w-full border p-2 rounded-md mb-4">
+      <option value="">-- Select --</option>
+    </select>
+
+    <!-- Display grouped schedules -->
+    <div id="modalSchedules" class="space-y-3 max-h-72 overflow-y-auto border p-3 rounded"></div>
+
+    <div class="mt-4 flex gap-2">
+      <button id="saveScheduleBtn" class="hidden flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md">
+        Request Enrollment
+      </button>
+      <button id="cancelModalBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-md">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+feather.replace();
+
+/* ---------- Protection ---------- */
+(function () {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+  if (!token || role !== "student") {
+    window.location.href = "student-login.html";
+  }
+})();
+
+/* ---------- State ---------- */
+let availableSubjects = [];
+let selectedSectionId = null;
+
+/* ---------- Helpers ---------- */
+function showToast(msg) { alert(msg); }
+
+function formatTimeShort(t) {
+  if (!t) return "";
+  const [hh, mm] = t.split(":");
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${mm} ${ampm}`;
+}
+
+/* ---------- Load available subjects ---------- */
+async function loadAvailableSubjects() {
+  try {
+    const subs = await apiFetch("/student/available-subjects");
+    availableSubjects = subs || [];
+
+    const table = document.getElementById("available-subjects-body");
+    if (!availableSubjects.length) {
+      table.innerHTML =
+        `<tr class="border-t"><td colspan="3" class="py-6 text-gray-500 text-center">No available subjects found.</td></tr>`;
+      return;
+    }
+
+    table.innerHTML = availableSubjects.map(s => `
+      <tr class="border-t">
+        <td class="py-2">${s.subject_code}</td>
+        <td class="py-2 text-left pl-6">${s.subject_name}</td>
+        <td class="py-2">${s.units}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error(err);
+    document.getElementById("available-subjects-body").innerHTML =
+      `<tr class="border-t"><td colspan="3" class="py-6 text-red-600 text-center">Failed to load subjects.</td></tr>`;
+  }
+}
+
+/* ---------- Load my schedules ---------- */
+async function loadMySchedules() {
+  try {
+    const list = await apiFetch("/student/my-schedules");
+    const table = document.getElementById("schedule-table-body");
+
+    if (!list.length) {
+      table.innerHTML =
+        `<tr class="border-t"><td colspan="6" class="py-6 text-gray-500 text-center">No schedules yet.</td></tr>`;
+      return;
+    }
+
+    table.innerHTML = list.map(s => `
+      <tr class="border-t">
+        <td class="py-2">${s.subject_code}</td>
+        <td class="py-2 text-left pl-6">${s.subject_name}</td>
+        <td class="py-2">${s.day}</td>
+        <td class="py-2">${formatTimeShort(s.start_time)} - ${formatTimeShort(s.end_time)}</td>
+        <td class="py-2">${s.section_name}</td>
+        <td class="py-2">${s.instructor || "-"}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error(err);
+    document.getElementById("schedule-table-body").innerHTML =
+      `<tr class="border-t"><td colspan="6" class="py-6 text-red-600 text-center">Failed to load schedules.</td></tr>`;
+  }
+}
+
+/* ---------- Modal open / close ---------- */
+function openModal() {
+  document.getElementById("addScheduleModal").classList.replace("hidden", "flex");
+  // populate dropdown every time to ensure fresh data
+  loadSubjectsInModal();
+}
+
+function closeModal() {
+  document.getElementById("addScheduleModal").classList.replace("flex", "hidden");
+  selectedSectionId = null;
+  const select = document.getElementById("modalSubject");
+  if (select) select.value = "";
+  const container = document.getElementById("modalSchedules");
+  if (container) container.innerHTML = "";
+  const btn = document.getElementById("saveScheduleBtn");
+  if (btn) btn.classList.add("hidden");
+}
+
+/* ---------- Populate subject dropdown ---------- */
+async function loadSubjectsInModal() {
+  try {
+    if (!availableSubjects || !availableSubjects.length) {
+      await loadAvailableSubjects();
+    }
+    const select = document.getElementById("modalSubject");
+    select.innerHTML = `<option value="">-- Select --</option>` +
+      (availableSubjects || []).map(s => `<option value="${s.subject_code}">${s.subject_code} - ${s.subject_name}</option>`).join("");
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to load subjects.");
+  }
+}
+
+/* ---------- Handler: when subject is picked ---------- */
+async function handleModalSubjectChange(evt) {
+  const subjectCode = evt.target.value;
+  const container = document.getElementById("modalSchedules");
+  container.innerHTML = "";
+  selectedSectionId = null;
+  document.getElementById("saveScheduleBtn").classList.add("hidden");
+
+  if (!subjectCode) {
+    container.innerHTML = `<p class="text-gray-500">Select a subject to view schedules.</p>`;
+    return;
+  }
+
+  try {
+    const rows = await apiFetch(`/student/subject/${subjectCode}/schedules`);
+    if (!rows.length) {
+      container.innerHTML = `<p class="text-gray-500">No schedules found for this subject.</p>`;
+      return;
+    }
+
+    // render cards (no event handlers here)
+    container.innerHTML = rows.map(r => {
+      const slots = (r.slots || "").split("||").filter(Boolean).map(s => {
+        const [day, start, end] = s.split("::");
+        return `${day} • ${formatTimeShort(start)} - ${formatTimeShort(end)}`;
+      });
+      return `
+        <div class="section-card border rounded p-3 hover:bg-blue-50 cursor-pointer" data-section="${r.section_id}">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="font-semibold">${r.section_name} — ${r.instructor || 'TBA'}</div>
+              <div class="text-xs text-gray-600">${r.subject_code} • ${r.subject_name}</div>
+            </div>
+            <div class="text-right text-sm text-gray-500">Section: ${r.section_id}</div>
+          </div>
+          <div class="mt-2 text-sm text-gray-700 space-y-1">
+            ${slots.map(x => `<div>${x}</div>`).join("")}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // client-side: delegate clicks on container (delegation ensures it works after re-insert)
+    container.onclick = function(e) {
+      const card = e.target.closest(".section-card");
+      if (!card) return;
+      // clear visuals
+      container.querySelectorAll('.section-card').forEach(c => c.classList.remove('ring','ring-2','ring-blue-400','bg-blue-50'));
+      card.classList.add('ring','ring-2','ring-blue-400','bg-blue-50');
+      selectedSectionId = card.getAttribute('data-section');
+      document.getElementById("saveScheduleBtn").classList.remove("hidden");
+    };
+
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = `<p class="text-red-600">Failed to load schedules.</p>`;
+  }
+}
+
+/* ---------- Enroll (send section_id) ---------- */
+async function enrollFromModal() {
+  if (!selectedSectionId) return showToast("Please select a section.");
+
+  try {
+    await apiFetch("/student/enroll", {
+      method: "POST",
+      body: JSON.stringify({ section_id: selectedSectionId })
+    });
+
+    showToast("Enrollment request submitted.");
+    closeModal();
+    await loadMySchedules();
+    await loadAvailableSubjects();
+  } catch (err) {
+    console.error(err);
+    showToast((err && err.message) ? err.message : "Enrollment failed.");
+  }
+}
+
+/* ---------- Wire up modal buttons - do this in a safe way so re-bind is trivial ---------- */
+function attachModalBindings() {
+  // close (X)
+  const closeBtn = document.getElementById("modalCloseBtn");
+  if (closeBtn) closeBtn.onclick = closeModal;
+
+  // cancel
+  const cancel = document.getElementById("cancelModalBtn");
+  if (cancel) cancel.onclick = closeModal;
+
+  // save
+  const saveBtn = document.getElementById("saveScheduleBtn");
+  if (saveBtn) {
+    saveBtn.onclick = enrollFromModal;
+  }
+
+  // subject change - ensure only one handler assigned
+  const sel = document.getElementById("modalSubject");
+  if (sel) {
+    sel.onchange = handleModalSubjectChange;
+  }
+}
+
+/* ---------- Page init (called by layout loader every time) ---------- */
+window["init_student-schedule"] = async function() {
+  // load fresh data each visit
+  await loadAvailableSubjects();
+  await loadMySchedules();
+
+  // attach modal listeners so they are present every time
+  attachModalBindings();
+
+  // ensure modal is in clean state
+  selectedSectionId = null;
+  const btn = document.getElementById("saveScheduleBtn");
+  if (btn) btn.classList.add("hidden");
+};
+
+/* ---------- Also run initial bindings if the page loaded directly (edge-case) ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  attachModalBindings();
+});
+</script>
