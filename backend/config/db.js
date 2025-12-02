@@ -2,14 +2,7 @@ const mysql = require("mysql2");
 require("dotenv").config();
 
 const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
-  connectionLimit: 10,
-
-  // 🔥 REQUIRED FOR CLEVER CLOUD CONNECTIONS
+  uri: process.env.MYSQL_ADDON_URI,
   ssl: {
     rejectUnauthorized: false
   }
@@ -17,7 +10,7 @@ const db = mysql.createPool({
 
 db.getConnection((err, con) => {
   if (err) {
-    console.log("❌ DB not connected!", err);
+    console.log("❌ DB not connected:", err);
   } else {
     console.log("🟢 Database connected");
     con.release();
