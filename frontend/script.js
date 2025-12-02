@@ -2,7 +2,7 @@
    and initializer name mismatches (hyphen vs underscore) are handled.
 */
 
-const API_BASE = "http://localhost:3000/api";
+const API_BASE = "https://edusched-xlgu.onrender.com/api";
 
 // ----------------------------------
 // Auth helpers

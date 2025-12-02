@@ -1,4 +1,4 @@
-const API_URL = "https://edusched-1e46.onrender.com/api";
+const API_URL = "https://edusched-xlgu.onrender.com/api";
 
 async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem("token");
